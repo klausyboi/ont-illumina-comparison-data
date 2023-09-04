@@ -11,9 +11,6 @@ df <- read.csv("coveragesoutput.csv")
 df <- distinct(df)
 ontdf <- read.csv("combined_output.csv")
 
-df_ONT <- df %>%
-  filter(str_detect(SampleName, "ONT"))
-
 
 average_df_ONT <- ontdf %>%
   group_by(Position, Gene) %>%
@@ -292,6 +289,4 @@ ggplot(total_combined, aes(x = data_set, y = avg_coverage, fill = source, group 
 
 
 
-
-dev.off()
 
