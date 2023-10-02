@@ -58,11 +58,7 @@ average_df_ONT_Mbp <- average_df_ONT_Mbp %>%
 
 gg1 <- ggplot(average_df_ONT_Mbp, aes(x = Position, y = avg_coverage, color = "ONT")) +
   geom_line() +
-  geom_text_repel(data = subset(average_df_ONT_Mbp, avg_coverage < 60), 
-                  aes(label = Gene),color="#5A5A5A" ,hjust = -0.1, vjust=0, size = 3, 
-                  force = 10, 
-                  box.padding = unit(0.35, "lines"),
-                  point.padding = unit(0.3, "lines"), max.overlaps = Inf) +
+  
   labs(y = "Coverages %", x = "Position (Mbp)") + 
   scale_color_manual(values = c("ONT" = "#FFA500")) +
   scale_x_continuous(labels = scales::comma) +
@@ -76,11 +72,7 @@ gg1 <- ggplot(average_df_ONT_Mbp, aes(x = Position, y = avg_coverage, color = "O
 
 gg2 <- ggplot(average_df_ILL_Mbp, aes(x = Position, y = avg_coverage, color = "Illumina")) +
   geom_line() +
-  geom_text_repel(data = subset(average_df_ILL_Mbp, avg_coverage < 60), 
-                  aes(label = Gene),color="#5A5A5A" ,hjust = -0.1, vjust=0, size = 3, 
-                  force = 10, 
-                  box.padding = unit(0.35, "lines"),
-                  point.padding = unit(0.3, "lines"), max.overlaps = Inf) +
+  
   labs(y = "Coverages %", x = "Position (Mbp)") + 
   scale_color_manual(values = c("Illumina" = "#6AAEFF")) +
   scale_x_continuous(labels = scales::comma) +
@@ -131,12 +123,8 @@ merged_df <- merged_df %>%
 colnames(merged_df) <- c("Position","Gene","PPE","is_drgene","avg_coverage_ILL","avg_coverage_ONT","Lower_platform","Difference","Dominant_Tech")
 
 gg4 <- ggplot(merged_df, aes(x=avg_coverage_ILL, y=avg_coverage_ONT)) +
-  geom_point(aes(color = ifelse(is_drgene, "is_drgene", ifelse(PPE != ".", "PPE", "Other"))), alpha=0.6,size=2.5) +
+  geom_point(aes(color = ifelse(is_drgene, "is_drgene", ifelse(PPE != ".", "PPE", "Other"))), alpha=0.6, size=2.5) +
   geom_smooth(method="lm", se=FALSE, color="grey50") +  
-  geom_text_repel(data=subset(merged_df, Difference > 14 | Difference < -14), 
-                  aes(label=ifelse(PPE != ".", PPE, Gene)), 
-                  size=3, 
-                  max.overlaps=50) +
   scale_color_manual(
     values = c("is_drgene" = "red", "PPE" = "blue", "Other" = "black"),
     name = "Gene Category",
@@ -146,12 +134,21 @@ gg4 <- ggplot(merged_df, aes(x=avg_coverage_ILL, y=avg_coverage_ONT)) +
   labs(y="ONT Coverages %", 
        x="Illumina Coverages %", 
        title="Average coverage across both platforms for all genes") +
-  theme(panel.background = element_blank(),
-        plot.title = element_text(hjust = 1),
-        plot.title.position = "plot",
-        legend.position = "top")
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 1),
+    plot.title.position = "plot",
+    legend.position = "top",
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10)
+  )
 
 print(gg4)
+
+
+
 
 
 
@@ -330,7 +327,7 @@ allOther_average_df_ILL <- allOther_df_ILL %>%
   summarise(avg_coverage = mean(Coverages, na.rm = TRUE))
 
 allOther_average_df_ILL$avg_coverage <- allOther_average_df_ILL$avg_coverage*100
-allOther_average_df_ONT$avg_coverage <- allOther_average_df_ONT$avg_coverage/100
+allOther_average_df_ONT$avg_coverage <- allOther_average_df_ONT$avg_coverage*100
 allOther_average_df_ILL_Mbp <- allOther_average_df_ILL %>% mutate(Position = Position / 1000000)
 allOther_average_df_ONT_Mbp <- allOther_average_df_ONT %>% mutate(Position = Position / 1000000)
 
@@ -353,20 +350,102 @@ outliers_data <- total_combined %>%
 
 ggplot(total_combined, aes(x = data_set, y = avg_coverage, fill = source, group = interaction(data_set, source))) +
   geom_boxplot(position = position_dodge(width = 0.8)) +
-  ggrepel::geom_text_repel(
-    data = subset(total_combined, !is.na(outlier)),
-    aes(label = outlier, group = interaction(data_set, source)),
-    size = 2.3,
-    force = 1,
-    max.iter = 10000,
-    max.overlaps = 30,
-    position = position_dodge(width = 0.8)
-  ) +
   labs(y = "Coverage (%)") +
   scale_fill_manual(values = c("Illumina" = "lightblue", "ONT" = "orange")) +
   theme(panel.background = element_blank())
 
+str(average_df_ILL_Mbp)
+str(average_df_ONT_Mbp)
+
+spearmansCombined <- merge(average_df_ILL_Mbp, average_df_ONT_Mbp,by = c("Position","Gene","PPE","is_drgene"))
+colnames(spearmansCombined)<- c("Position","Gene","PPE","is_drgene","Average_coverage_Illumina","Average_coverage_ONT")
+rho <- cor(spearmansCombined$Average_coverage_Illumina,spearmansCombined$Average_coverage_ONT,method="spearman")
+print(rho)
+
+spearmansPPE <- merge(average_ppe_ILL,average_ppe_ONT,by=c("Position","Gene","PPE"))
+
+colnames(spearmansPPE)[colnames(spearmansPPE) == "avg_coverage.x"] <- "Average_coverage_ILL"
+colnames(spearmansPPE)[colnames(spearmansPPE) == "avg_coverage.y"] <- "Average_coverage_ONT"
+spearmansPPE2 <- subset(spearmansPPE,select=-c(source.x,source.y))
+rho <- cor(spearmansPPE2$Average_coverage_ILL,spearmansPPE2$Average_coverage_ONT,method="spearman")
+print(rho)
+
+
+spearmansDR <- merge(average_dr_ILL,average_dr_ONT,by=c("Position","Gene"))
+colnames(spearmansDR)[colnames(spearmansDR) == "avg_coverage.x"] <- "Average_coverage_ILL"
+colnames(spearmansDR)[colnames(spearmansDR) == "avg_coverage.y"] <- "Average_coverage_ONT"
+spearmansDR2 <- subset(spearmansDR,select=-c(source.x,source.y))
+
+rho <- cor(spearmansDR2$Average_coverage_ILL,spearmansDR2$Average_coverage_ONT,method="spearman")
+print(rho)
+
+spearmansOther <- merge(allOther_average_df_ILL,allOther_average_df_ONT,by=c("Position","Gene"))
+
+colnames(spearmansOther)[colnames(spearmansOther) == "avg_coverage.x"] <- "Average_coverage_ILL"
+colnames(spearmansOther)[colnames(spearmansOther) == "avg_coverage.y"] <- "Average_coverage_ONT"
+sortedSpearmansOther <- spearmansOther[order(spearmansOther$Position),]
+rownames(sortedSpearmansOther) <- NULL
+sortedSpearmansOther$Average_coverage_ONT <- sortedSpearmansOther$Average_coverage_ONT* 100
+
+rho <- cor(sortedSpearmansOther$Average_coverage_ILL,sortedSpearmansOther$Average_coverage_ONT,method="spearman")
+print(rho)
+
+
+ratios_Other <- sortedSpearmansOther$Average_coverage_ONT / sortedSpearmansOther$Average_coverage_ILL * 100
+ratios_DR <- spearmansDR2$Average_coverage_ONT / spearmansDR2$Average_coverage_ILL * 100
+ratios_PPE <- spearmansPPE2$Average_coverage_ONT / spearmansPPE2$Average_coverage_ILL * 100
+ratios_All <- spearmansCombined$Average_coverage_ONT / spearmansCombined$Average_coverage_Illumina * 100
+
+median(ratios_Other)
+median(ratios_DR)
+median(ratios_PPE)
+median(ratios_All)
+min(ratios_Other)
+max(ratios_Other)
+min(ratios_DR)
+max(ratios_DR)
+min(ratios_PPE)
+max(ratios_PPE)
+min(ratios_All)
+max(ratios_All)
 
 
 
+snpsDF <- read.csv("Book1.csv")
+snpsDF$Sample_ID <- ifelse(snpsDF$Platform == "ONT", snpsDF$Sample, lag(snpsDF$Sample))
+ont_df <- snpsDF[snpsDF$Platform == "ONT", ]
+illumina_df <- snpsDF[snpsDF$Platform == "Illumina", ]
 
+colnames(ont_df)[3:6] <- paste0(colnames(ont_df)[3:6], "_ONT")
+colnames(illumina_df)[3:6] <- paste0(colnames(illumina_df)[3:6], "_Illumina")
+
+snpsDF_reformatted <- merge(ont_df, illumina_df, by = "Sample_ID")
+
+snpsDF_reformatted <- snpsDF_reformatted[, !(colnames(snpsDF_reformatted) %in% c("Sample.x", "Platform.x", "Sample.y", "Platform.y"))]
+
+print(snpsDF_reformatted)
+
+
+snpsDF_reformatted$SNP_Ratio <- snpsDF_reformatted$no..SNPs._ONT / snpsDF_reformatted$no..SNPs._Illumina
+
+snpsDF_reformatted$difference_SNPs <- abs(snpsDF_reformatted$no..SNPs._ONT - snpsDF_reformatted$no..SNPs._Illumina)
+median_difference <- median(snpsDF_reformatted$difference_SNPs)
+IQR_difference <- IQR(snpsDF_reformatted$difference_SNPs)
+lower_quartile <- quantile(snpsDF_reformatted$difference_SNPs, 0.25)
+upper_quartile <- quantile(snpsDF_reformatted$difference_SNPs, 0.75)
+
+print(median_difference)
+print(upper_quartile)
+print(lower_quartile)
+
+snpsDF_reformatted$ratio_SNPs <- snpsDF_reformatted$no..SNPs._ONT / snpsDF_reformatted$no..SNPs._Illumina
+median_ratio <- median(snpsDF_reformatted$ratio_SNPs)
+
+
+IQR_ratio <- IQR(snpsDF_reformatted$ratio_SNPs)
+
+lower_quartile_ratio <- quantile(snpsDF_reformatted$ratio_SNPs, 0.25)
+upper_quartile_ratio <- quantile(snpsDF_reformatted$ratio_SNPs, 0.75)
+
+print(median_ratio)
+print(IQR_ratio)
