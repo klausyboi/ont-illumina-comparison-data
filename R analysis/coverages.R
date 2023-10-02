@@ -3,32 +3,58 @@ setwd("C:/Users/thorp/Downloads")
 
 library(tidyverse)
 library(dplyr)
+library(stringr)
 library(ggplot2)
 library(gridExtra)
 library(cowplot)
+library(ggrepel)
 
 df <- read.csv("coveragesoutput.csv")
 df <- distinct(df)
 ontdf <- read.csv("combined_output.csv")
 
+drgenes <- read.csv("coveragesoutput.csv")
+
+stuff <- read.table("new2.txt")
+rv_numbers <- stuff$V4
+rv_unique <- unique(rv_numbers[grep("^Rv", rv_numbers)])
+
 
 average_df_ONT <- ontdf %>%
-  group_by(Position, Gene) %>%
+  group_by(Position, Gene,PPE) %>%
   summarise(avg_coverage = mean(Coverages, na.rm = TRUE))
-
-
 df_ILL <- df %>%
   filter(str_detect(SampleName, "ILL"))
 
 average_df_ILL <- df_ILL %>%
-  group_by(Position,Gene) %>%
+  group_by(Position,Gene,PPE) %>%
   summarise(avg_coverage = mean(Coverages, na.rm = TRUE))
+
+drgenes_ILL <- df_ILL[df_ILL$Gene %in% rv_unique, ]
+drgenes_ONT <- ontdf[ontdf$Gene %in% rv_unique, ]
+
+average_df_ONT <- average_df_ONT %>%
+  left_join(drgenes_ONT %>%
+              select(Position, Gene) %>%
+              distinct() %>%
+              mutate(is_drgene = TRUE),
+            by = c("Position", "Gene")) %>%
+  replace_na(list(is_drgene = FALSE))
+
+average_df_ILL <- average_df_ILL %>%
+  left_join(drgenes_ILL %>%
+              select(Position, Gene) %>%
+              distinct() %>%
+              mutate(is_drgene = TRUE),
+            by = c("Position", "Gene")) %>%
+  replace_na(list(is_drgene = FALSE))
 
 average_df_ILL$avg_coverage <- average_df_ILL$avg_coverage*100
 average_df_ILL_Mbp <- average_df_ILL %>% mutate(Position = Position / 1000000)
 average_df_ONT_Mbp <- average_df_ONT %>% mutate(Position = Position / 1000000)
 
-library(ggrepel)
+average_df_ONT_Mbp <- average_df_ONT_Mbp %>%
+  filter(!str_starts(Gene,"EBG"))
 
 gg1 <- ggplot(average_df_ONT_Mbp, aes(x = Position, y = avg_coverage, color = "ONT")) +
   geom_line() +
@@ -68,6 +94,65 @@ gg2 <- ggplot(average_df_ILL_Mbp, aes(x = Position, y = avg_coverage, color = "I
 
 
 plot_grid(gg2, gg1, align = 'v', nrow = 2, axis = 'l')
+
+merged_df <- merge(average_df_ILL_Mbp, average_df_ONT_Mbp, by = c("Position", "Gene","PPE","is_drgene") )
+colnames(merged_df)<- c("Position","Gene","PPE","is_drgene","avg_coverage_ILL","avg_coverage_ONT")
+
+merged_df$dominant_tech <- ifelse(merged_df$avg_coverage_ILL > merged_df$avg_coverage_ONT, "Illumina", "ONT")
+label_df <- merged_df[(merged_df$avg_coverage_ILL < 60) | (merged_df$avg_coverage_ONT < 60), ]
+
+
+merged_df <- merged_df %>%
+  mutate(diff = abs(avg_coverage_ILL - avg_coverage_ONT))
+
+gg3 <- ggplot(merged_df, aes(x = avg_coverage_ILL, y = avg_coverage_ONT, color = dominant_tech)) +
+  geom_point(alpha = 0.6) + 
+  geom_text_repel(data = label_df, aes(label = Gene), 
+                  size = 3, 
+                  box.padding = unit(0.35, "lines"),
+                  point.padding = unit(0.3, "lines"),max.overlaps = 100) +
+  scale_color_manual(values = c("Illumina" = "orange", "ONT" = "blue")) +
+  labs(y = "ONT Coverages %", x = "Illumina Coverages %") + 
+  theme(panel.background = element_blank(),
+        plot.title = element_text(hjust = 1, vjust = -30),
+        plot.title.position = "plot",
+        legend.position = "top")
+
+
+
+
+print(gg3)
+merged_df <- merged_df %>%
+  mutate(color_criteria = case_when(
+    is_drgene ~ "is_drgene",
+    PPE != "." ~ "PPE",
+    TRUE ~ "Other"
+  ))
+colnames(merged_df) <- c("Position","Gene","PPE","is_drgene","avg_coverage_ILL","avg_coverage_ONT","Lower_platform","Difference","Dominant_Tech")
+
+gg4 <- ggplot(merged_df, aes(x=avg_coverage_ILL, y=avg_coverage_ONT)) +
+  geom_point(aes(color = ifelse(is_drgene, "is_drgene", ifelse(PPE != ".", "PPE", "Other"))), alpha=0.6,size=2.5) +
+  geom_smooth(method="lm", se=FALSE, color="grey50") +  
+  geom_text_repel(data=subset(merged_df, Difference > 14 | Difference < -14), 
+                  aes(label=ifelse(PPE != ".", PPE, Gene)), 
+                  size=3, 
+                  max.overlaps=50) +
+  scale_color_manual(
+    values = c("is_drgene" = "red", "PPE" = "blue", "Other" = "black"),
+    name = "Gene Category",
+    breaks = c("is_drgene", "PPE", "Other"),
+    labels = c("DR Gene", "PPE Gene", "Other")
+  ) +
+  labs(y="ONT Coverages %", 
+       x="Illumina Coverages %", 
+       title="Average coverage across both platforms for all genes") +
+  theme(panel.background = element_blank(),
+        plot.title = element_text(hjust = 1),
+        plot.title.position = "plot",
+        legend.position = "top")
+
+print(gg4)
+
 
 
 ppe_df <- df %>%
@@ -128,12 +213,6 @@ plot1 <-ggplot(average_ppe_combined, aes(x = "", y = avg_coverage, fill = source
   ) +
   scale_fill_manual(values = c("Illumina" = "lightblue", "ONT" = "orange"))
 
-
-drgenes <- read.csv("coveragesoutput.csv")
-
-stuff <- read.table("new2.txt")
-rv_numbers <- stuff$V4
-rv_unique <- unique(rv_numbers[grep("^Rv", rv_numbers)])
 
 drgenes_ILL <- df_ILL[df_ILL$Gene %in% rv_unique, ]
 drgenes_ONT <- ontdf[ontdf$Gene %in% rv_unique, ]
@@ -286,6 +365,7 @@ ggplot(total_combined, aes(x = data_set, y = avg_coverage, fill = source, group 
   labs(y = "Coverage (%)") +
   scale_fill_manual(values = c("Illumina" = "lightblue", "ONT" = "orange")) +
   theme(panel.background = element_blank())
+
 
 
 
