@@ -4,7 +4,7 @@ library(stringr)
 library(tidyr)
 library(dplyr)
 rm(list=ls())
-
+##read in data
 samediff <- readLines("samediff.txt")
 illDiff <- readLines("illdiff.txt")
 nanoDiff <- readLines("nanodiff.txt")
@@ -14,7 +14,7 @@ totalReadsSame <- c()
 totalReadsNano <- c()
 totalReadsIll <- c()
 
-
+##parse data for joint variants
 for (i in seq_along(samediff)) {
   
   if (grepl("sample", samediff[i])) {
@@ -27,6 +27,7 @@ for (i in seq_along(samediff)) {
   
 
 }
+##nanopore specific
 for (i in seq_along(nanoDiff)) {
   
   if (grepl("sample", nanoDiff[i])) {
@@ -39,7 +40,7 @@ for (i in seq_along(nanoDiff)) {
   
   
 }
-
+##illumina specific
 for (i in seq_along(illDiff)) {
   
   if (grepl("sample", illDiff[i])) {
@@ -53,7 +54,7 @@ number <- gsub("length=","",illDiff[i+1])
 }
 
 
-
+##process and clean
 totalSamples <- c()
 for (j in samples){
   newString <- gsub("_sv_calls.vcf" ,"",j)
@@ -68,7 +69,7 @@ for (z in samplesSplit){
   newSamples <- c(newSamples, paste0(gsub(" ","",z[2]),"_", gsub(" ","",z[3]),"_", gsub(" ","",z[4])))
 }
 
-newSamples
+##remove unwanted string patterns
 newSamplesOverrule <- c()
 for (j in newSamples) {
   newString <- gsub("_NA", "", j)
@@ -82,7 +83,7 @@ samples <- paste( 1:72, sep = " ")
 samples2 <- paste("Samples", 1:72, sep = " ")
 samples2 <- samples2[-c(6,7,9,10,18)]
 
-samples2
+##create dataframes for each dataset and merge them
 same_frame <- data.frame(totalSamples,totalReadsSame)
 same_frame <- same_frame %>% arrange(totalSamples)
 colnames(same_frame)[1]<- "Samples"
@@ -118,13 +119,13 @@ dataCombined['Total'] = dataCombined['Joint Variants'] + dataCombined['Unique Il
 dataCombined['Total ONT'] = dataCombined['Joint Variants']+ dataCombined['Unique ONT Variants']
 dataCombined['Total Illumina'] = dataCombined['Joint Variants']+ dataCombined['Unique Illumina Variants']
 
-
+##read in large dataset
 sameTotal <- readLines("same_large_svs.txt")
 illTotal <- readLines("illu_large_svs.txt")
 nanoTotal <- readLines("nano_large_svs.txt")
 
 
-
+##get large SV counts from text files
 sameLarge = c()
 
 for (i in seq_along(sameTotal)) {
@@ -149,7 +150,7 @@ for (i in seq_along(illTotal)) {
   }
 }
 
-
+##create dfs for each set of large sv counts
 nano_large_df <- data.frame(totalSamples,nanoLarge)
 nano_large_df <- nano_large_df %>% arrange(totalSamples)
 illu_large_df <- data.frame(totalSamples,illLarge)
@@ -165,13 +166,13 @@ colnames(illu_large_df)[1]<- "Samples"
 colnames(illu_large_df)[2] <- "Illumina Large SVs"
 
 
-
+##merge large datasets
 dataCombinedBefore <- merge(same_large_df,illu_large_df,by="Samples")
 dataCombinedBefore <- merge(dataCombinedBefore,nano_large_df, by="Samples")
 dataCombinedBefore <- dataCombinedBefore[-c(6,8,9,17),]
-
+##combine all
 totalCombined <- merge(dataCombinedBefore,dataCombined, by="Samples")
 
 
-
+##export data
 write.csv(totalCombined,"comparisonDelly.csv",quote = FALSE,row.names = FALSE)
