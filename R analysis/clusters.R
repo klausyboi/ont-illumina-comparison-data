@@ -42,27 +42,32 @@ for (i in 1:length(thresholds)) {
 }
 ##initialise a list to store sample names for each study
 study_sample_names <- list()
+
 ##loop over the thresholds to identify study samples
 for (t in thresholds) {
-  ##perform clustering at the current threshold
+  ## Perform clustering at the current threshold
   current_clusters <- as.data.frame(cutree(as.hclust(agnes(distance, diss = TRUE, method = "average")), h = t))
   colnames(current_clusters) <- "cluster_id"
   current_clusters$Sample <- rownames(current_clusters)
-  ##merge cluster data with tbprofiler metadata
+  ## Merge cluster data with tbprofiler metadata
   merged_data_current <- merge(tbprofiler, current_clusters, by="Sample", all=TRUE)
-
-  ##subset the data to identify study samples based on cluster size and IDs
+  
+  ## Calculate cluster sizes here
+  cluster_sizes <- table(current_clusters$cluster_id)
+  
+  ## Subset the data to identify study samples based on cluster size and IDs
   study_samples <- subset(merged_data_current, 
                           !is.na(cluster_id) & 
                             cluster_id != 1 & 
                             grepl("^MTB", Sample) & 
-                            cluster_sizes[as.numeric(cluster_id)] >= 2)
+                            cluster_sizes[as.numeric(cluster_id)] >= 3)
   
-  ##store the study sample names for each threshold
+  ## Store the study sample names for each threshold
   study_sample_names[[as.character(t)]] <- study_samples$Sample
 }
-##loop over the thresholds to print study sample names
+
+## Loop over the thresholds to print study sample names
 for (t in thresholds) {
   print(paste("For threshold", t, "SNPs:"))
-  print(paste("  Study sample names in clusters (2 or more):", toString(study_sample_names[[as.character(t)]])))
+  print(paste("  Study sample names in clusters (3 or more):", toString(study_sample_names[[as.character(t)]])))
 }
